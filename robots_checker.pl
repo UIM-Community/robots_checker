@@ -82,7 +82,7 @@ nimLogin($Login,$Password) if defined($Login) && defined($Password);
 # 
 $SDK                = new perluim::main("$Domain");
 $Final_directory    = "$Output_directory/$Execution_Date";
-$SDK->createDirectory("$Output_directory/$Execution_Date");
+perluim::utils::createDirectory("$Output_directory/$Execution_Date");
 $Console->cleanDirectory("$Output_directory",$Cache_delay);
 
 #
@@ -112,7 +112,7 @@ sub main {
 sub checkRobots {
     my ($hub) = @_;
 
-    my ($RC,@RobotsList) = $hub->getLocalRobots();
+    my ($RC,@RobotsList) = $hub->local_robotsArray();
     if($RC == NIME_OK) {
 
         $Console->print("Starting processing robots",5);
@@ -125,7 +125,7 @@ sub checkRobots {
             $Console->print("Start processing of $robot->{name} probes",5);
             $Console->print('---------------------------------------',5);
 
-            my ($RC_Probe,@ProbesList) = $robot->getLocalArrayProbes();
+            my ($RC_Probe,@ProbesList) = $robot->local_probesArray();
             if($RC_Probe == NIME_OK) {
 
                 foreach my $probe (@ProbesList) {
@@ -195,7 +195,6 @@ sub checkRobots {
 sub trap_die {
     my ($err) = @_;
 	$Console->print("Program is exiting abnormally : $err",0);
-    $| = 1; # Buffer I/O fix
     sleep(2);
     $Console->copyTo("output/$Execution_Date");
 }
@@ -205,7 +204,6 @@ sub trap_die {
 #
 sub breakApplication { 
     $Console->print("\n\n Application breaked with CTRL+C \n\n",0);
-    $| = 1; # Buffer I/O fix
     sleep(2);
     $Console->copyTo("output/$Execution_Date");
     exit(1);
@@ -215,7 +213,6 @@ sub breakApplication {
 main();
 
 $Console->finalTime($time);
-$| = 1; # Buffer I/O fix
 sleep(2);
 $Console->copyTo($Final_directory);
 $Console->close();
