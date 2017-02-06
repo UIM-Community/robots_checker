@@ -28,8 +28,19 @@ Dont forget you need perluim R3.0+ framework for this probe. Find the framework 
 ### Sample configuration 
 
 ```xml
+<setup>
+    domain = DOMAIN
+    audit = 0
+    callback_retry_count = 3
+    nim_login = login
+    nim_password = password
+    output_directory = output
+    output_cache_time = 432000
+</setup>
 <monitoring>
     alarms_probes_down = yes
+    alarm_severity = 2
+    alarm_subsys = 1.1.20
 </monitoring>
 <probes_list>
     <cdm>
@@ -47,6 +58,9 @@ Dont forget you need perluim R3.0+ framework for this probe. Find the framework 
     <spooler>
         callback = _status 
     </spooler>
+    <hdb>
+        callback = _status 
+    </hdb> 
     <ntservices>
         callback = _status 
     </ntservices> 
@@ -54,12 +68,4 @@ Dont forget you need perluim R3.0+ framework for this probe. Find the framework 
         callback = _status 
     </processes>
 </probes_list>
-<alarm_messages>
-    <probe_down>
-        message = Robots_checker: Callback $callback failed for $probe on $robotName
-        i18n_token = 
-        severity = 5
-        subsystem = 1.1.1.1
-    </probe_down>
-</alarm_messages>
 ```
