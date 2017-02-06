@@ -163,7 +163,7 @@ sub checkRobots {
                         $generate_alarm = 1;
                     }
 
-                    my $cb_identifier = "selfmon_$probe->{name}_$robot->{name}";
+                    my $cb_identifier = "robotscheck_cbfail_$robot->{name}_$probe->{name}";
 
                     if($generate_alarm and not $Audit) {
                         my %AlarmObject = (
@@ -179,6 +179,7 @@ sub checkRobots {
                             subsystem => $alarm_subsys,
                             suppression => $cb_identifier,
                             usertag1 => "$robot->{os_user1}",
+                            supp_key => $cb_identifier,
                             usertag2 => "$robot->{os_user2}"
                         );
                         my ($PDS,$alarmid) = perluim::utils::generateAlarm('alarm',\%AlarmObject);
@@ -194,16 +195,17 @@ sub checkRobots {
                     else {
                         if($filemap->has($cb_identifier)) {
                             my %AlarmObject = (
-                                severity => $alarm_severity,
+                                severity => 0,
                                 robot => "$robot->{name}",
                                 probe => "robots_checker",
                                 source => "$robot->{ip}",
                                 dev_id => "$robot->{device_id}",
                                 met_id => "$robot->{metric_id}",
                                 subsystem => $alarm_subsys,
+                                supp_key => $cb_identifier,
                                 suppression => $cb_identifier
                             );
-                            my ($PDS,$alarmid) = perluim::utils::generateAlarm('clear',\%AlarmObject);
+                            my ($PDS,$alarmid) = perluim::utils::generateAlarm('alarm',\%AlarmObject);
                             my ($rc_alarm,$res) = nimRequest("$robot->{name}",48001,"post_raw",$PDS);
                             if($rc_alarm == NIME_OK) {
                                 $Console->print("Generating alarm clear with id => $alarmid");
