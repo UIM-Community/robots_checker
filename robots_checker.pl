@@ -17,7 +17,7 @@ use perluim::filemap;
 # Declare default script variables & declare log class.
 #
 my $time = time();
-my $version = "1.0";
+my $version = "1.5";
 my ($Console,$SDK,$Execution_Date,$Final_directory);
 $Execution_Date = perluim::utils::getDate();
 $Console = new perluim::log('robots_checker.log',6,0,'yes');
@@ -121,19 +121,18 @@ sub checkRobots {
         # Foreach robots
         my $probe_down = 0;
         foreach my $robot (@RobotsList) {
-            next if $robot->{os_user2} ne "PILOTAGE COMMAND CENTER";
 
-            $Console->print('---------------------------------------',5);
+            $Console->print('',5);
             $Console->print("Start processing of $robot->{name} probes",5);
-            $Console->print('---------------------------------------',5);
+            $Console->print('',5);
 
-            my ($RC_Probe,@ProbesList) = $robot->local_probesArray();
+            my ($RC_Probe,@ProbesArr) = $robot->local_probesArray();
             if($RC_Probe == NIME_OK) {
 
-                foreach my $probe (@ProbesList) {
+                foreach my $probe (@ProbesArr) {
                     next if not exists($ProbesList{$probe->{name}}); 
                     my $generate_alarm = 0;
-                    $Console->print(">> $probe->{name}");
+                    $Console->print("processing $probe->{name}",3);
                     my $callback = $ProbesList{$probe->{name}}{callback};
 
                     if($probe->{active}) {
@@ -141,9 +140,15 @@ sub checkRobots {
                         my $i_retry = 3;
                         my $i_fail = "ko";
                         while($i_retry--) {
-                            my ($cb_rc,$res) = nimRequest("$robot->{name}",$probe->{port},$callback,$pds->data());
+                            my ($cb_rc,$res)
+                            if(not defined $probe->{port}) {
+                                ($cb_rc,$res) = nimNamedRequest("$robot->{addr}",$callback,$pds->data());
+                            }
+                            else {
+                                ($cb_rc,$res) = nimRequest("$robot->{name}",$probe->{port},$callback,$pds->data());
+                            }
                             if($cb_rc != NIME_OK) {
-                                $Console->print("Failed to execute $callback");
+                                $Console->print("Failed to execute $callback with rc $cb_rc",1);
                                 $|=1;
                                 perluim::utils::doSleep(2);
                             }
@@ -160,6 +165,7 @@ sub checkRobots {
                         }
                     }
                     else {
+                        $Console->print("Probe inactive - KO...");
                         $generate_alarm = 1;
                     }
 
@@ -168,7 +174,7 @@ sub checkRobots {
                     if($generate_alarm and not $Audit) {
                         my %AlarmObject = (
                             severity => $alarm_severity,
-                            message => "Probe $probe->{name} does'nt respond to the callback $callback'",
+                            message => "Callback $callback return error for probe $probe->{name}",
                             robot => "$robot->{name}",
                             domain => "$Domain",
                             probe => "robots_checker",
@@ -177,16 +183,20 @@ sub checkRobots {
                             dev_id => "$robot->{device_id}",
                             met_id => "$robot->{metric_id}",
                             subsystem => $alarm_subsys,
-                            suppression => $cb_identifier,
+                            suppression => "$cb_identifier",
                             usertag1 => "$robot->{os_user1}",
-                            supp_key => $cb_identifier,
+                            supp_key => "$cb_identifier",
                             usertag2 => "$robot->{os_user2}"
                         );
                         my ($PDS,$alarmid) = perluim::utils::generateAlarm('alarm',\%AlarmObject);
                         my ($rc_alarm,$res) = nimRequest("$robot->{name}",48001,"post_raw",$PDS);
                         if($rc_alarm == NIME_OK) {
-                            $Console->print("Generating alarm with id => $alarmid");
-                            $filemap->set($cb_identifier);
+                            $Console->print("Generating alarm with id => $alarmid for probe $probe->{name}",2);
+                            my %Args = (
+                                suppkey => "$cb_identifier"
+                            );
+                            $filemap->set($cb_identifier, \%Args );
+                            $filemap->writeToDisk();
                         }
                         else {
                             $Console->print("Failed to generate new alarm",2);
@@ -196,23 +206,28 @@ sub checkRobots {
                         if($filemap->has($cb_identifier)) {
                             my %AlarmObject = (
                                 severity => 0,
+                                message => "Clear alarm for probe $probe->{name} on callback $callback",
+                                domain => "$Domain",
                                 robot => "$robot->{name}",
                                 probe => "robots_checker",
                                 source => "$robot->{ip}",
                                 dev_id => "$robot->{device_id}",
                                 met_id => "$robot->{metric_id}",
-                                subsystem => $alarm_subsys,
-                                supp_key => $cb_identifier,
-                                suppression => $cb_identifier
+                                subsystem => "1.1.",
+                                supp_key => "$cb_identifier",
+                                suppression => "$cb_identifier",
+                                usertag1 => "$robot->{os_user1}",
+                                usertag2 => "$robot->{os_user2}"
                             );
                             my ($PDS,$alarmid) = perluim::utils::generateAlarm('alarm',\%AlarmObject);
                             my ($rc_alarm,$res) = nimRequest("$robot->{name}",48001,"post_raw",$PDS);
                             if($rc_alarm == NIME_OK) {
                                 $Console->print("Generating alarm clear with id => $alarmid");
-                                $filemap->delete($cb_identifier);
+                                #$filemap->delete($cb_identifier);
+                                $filemap->writeToDisk();
                             }
                             else {
-                                $Console->print("Failed to generate new alarm clear",2);
+                                $Console->print("Failed to generate new alarm clear with RC $rc_alarm",2);
                             }
                         }
                     }
@@ -225,7 +240,7 @@ sub checkRobots {
             }
         }
 
-        $Console->print('---------------------------------------',5);
+        $Console->print('',5);
         $Console->print("Robots processing done! Probe down count => $probe_down");
 
         return 1;
@@ -245,6 +260,7 @@ sub trap_die {
 	$Console->print("Program is exiting abnormally : $err",0);
     sleep(2);
     $Console->copyTo("output/$Execution_Date");
+    $filemap->writeToDisk();
 }
 
 #
@@ -254,11 +270,13 @@ sub breakApplication {
     $Console->print("\n\n Application breaked with CTRL+C \n\n",0);
     sleep(2);
     $Console->copyTo("output/$Execution_Date");
+    $filemap->writeToDisk();
     exit(1);
 }
 
 # Call the main method 
 main();
+$filemap->writeToDisk();
 
 $Console->finalTime($time);
 sleep(2);
