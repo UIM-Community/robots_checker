@@ -140,7 +140,7 @@ sub checkRobots {
                         my $i_retry = 3;
                         my $i_fail = "ko";
                         while($i_retry--) {
-                            my ($cb_rc,$res)
+                            my ($cb_rc,$res);
                             if(not defined $probe->{port}) {
                                 ($cb_rc,$res) = nimNamedRequest("$robot->{addr}",$callback,$pds->data());
                             }
@@ -189,7 +189,7 @@ sub checkRobots {
                             usertag2 => "$robot->{os_user2}"
                         );
                         my ($PDS,$alarmid) = perluim::utils::generateAlarm('alarm',\%AlarmObject);
-                        my ($rc_alarm,$res) = nimRequest("$robot->{name}",48001,"post_raw",$PDS);
+                        my ($rc_alarm,$res) = nimRequest("$robot->{name}",48001,"post_raw",$PDS->data);
                         if($rc_alarm == NIME_OK) {
                             $Console->print("Generating alarm with id => $alarmid for probe $probe->{name}",2);
                             my %Args = (
@@ -199,31 +199,32 @@ sub checkRobots {
                             $filemap->writeToDisk();
                         }
                         else {
-                            $Console->print("Failed to generate new alarm",2);
+                            $Console->print("Failed to generate new alarm (RC: $rc_alarm) - Robot: $robot->{name}",2);
                         }
                     }
                     else {
                         if($filemap->has($cb_identifier)) {
                             my %AlarmObject = (
                                 severity => 0,
-                                message => "Clear alarm for probe $probe->{name} on callback $callback",
+                                message => "Callback $callback return error for probe $probe->{name}",
                                 domain => "$Domain",
                                 robot => "$robot->{name}",
                                 probe => "robots_checker",
                                 source => "$robot->{ip}",
+                                origin => "$robot->{origin}",
                                 dev_id => "$robot->{device_id}",
                                 met_id => "$robot->{metric_id}",
-                                subsystem => "1.1.",
+                                subsystem => $alarm_subsys,
                                 supp_key => "$cb_identifier",
                                 suppression => "$cb_identifier",
                                 usertag1 => "$robot->{os_user1}",
                                 usertag2 => "$robot->{os_user2}"
                             );
                             my ($PDS,$alarmid) = perluim::utils::generateAlarm('alarm',\%AlarmObject);
-                            my ($rc_alarm,$res) = nimRequest("$robot->{name}",48001,"post_raw",$PDS);
+                            my ($rc_alarm,$res) = nimRequest("$robot->{name}",48001,"post_raw",$PDS->data);
                             if($rc_alarm == NIME_OK) {
                                 $Console->print("Generating alarm clear with id => $alarmid");
-                                #$filemap->delete($cb_identifier);
+                                $filemap->delete($cb_identifier);
                                 $filemap->writeToDisk();
                             }
                             else {
